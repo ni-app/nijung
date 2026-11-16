@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>โปรแกรมบันทึกรายรับรายจ่าย</title>
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-color: #1f2937;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 480px;
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+        }
+        .balance-container {
+            text-align: center;
+            margin-bottom: 20px;
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .balance-container h3 {
+            margin: 0;
+            font-size: 14px;
+            color: #6b7280;
+        }
+        #balance {
+            font-size: 28px;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+        .summary-cards {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .card {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            color: white;
+        }
+        .card.income { background-color: var(--success-color); }
+        .card.expense { background-color: var(--danger-color); }
+        .card p { margin: 0; font-size: 12px; }
+        .card h4 { margin: 5px 0 0; font-size: 16px; }
+        
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        input, select, button {
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+        }
+        input:focus, select:focus {
+            border-color: var(--primary-color);
+        }
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: #4338ca;
+        }
+        .section-title {
+            font-size: 16px;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 5px;
+        }
+        .transaction-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+        .transaction-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            background: #f9fafb;
+            font-size: 14px;
+        }
+        .transaction-item.income { border-left: 4px solid var(--success-color); }
+        .transaction-item.expense { border-left: 4px solid var(--danger-color); }
+        .delete-btn {
+            background: none;
+            border: none;
+            color: #9ca3af;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 0 5px;
+        }
+        .delete-btn:hover { color: var(--danger-color); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>รายรับ - รายจ่าย</h2>
+        
+        <div class="balance-container">
+            <h3>ยอดคงเหลือทั้งหมด</h3>
+            <div id="balance">฿0.00</div>
+        </div>
+
+        <div class="summary-cards">
+            <div class="card income">
+                <p>รายรับรวม</p>
+                <h4 id="total-income">฿0.00</h4>
+            </div>
+            <div class="card expense">
+                <p>รายจ่ายรวม</p>
+                <h4 id="total-expense">฿0.00</h4>
+            </div>
+        </div>
+
+        <form id="transaction-form">
+            <input type="text" id="text" placeholder="ชื่อรายการ (เช่น เงินเดือน, ค่าข้าว)" required>
+            <input type="number" id="amount" placeholder="จำนวนเงิน (บาท)" step="any" required>
+            <select id="type">
+                <option value="income">รายรับ</option>
+                <option value="expense">รายจ่าย</option>
+            </select>
+            <button type="submit">เพิ่มรายการ</button>
+        </form>
+
+        <div class="section-title">ประวัติรายการ</div>
+        <ul id="list" class="transaction-list"></ul>
+    </div>
+
+    <script>
+        const balanceEl = document.getElementById('balance');
+        const totalIncomeEl = document.getElementById('total-income');
+        const totalExpenseEl = document.getElementById('total-expense');
+        const listEl = document.getElementById('list');
+        const form = document.getElementById('transaction-form');
+        const textInput = document.getElementById('text');
+        const amountInput = document.getElementById('amount');
+        const typeInput = document.getElementById('type');
+
+        let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+
+        function init() {
+            listEl.innerHTML = '';
+            transactions.forEach(addTransactionDOM);
+            updateValues();
+        }
+
+        function addTransaction(e) {
+            e.preventDefault();
+            
+            const transaction = {
+                id: generateID(),
+                text: textInput.value,
+                amount: +amountInput.value,
+                type: typeInput.value
+            };
+
+            transactions.push(transaction);
+            addTransactionDOM(transaction);
+            updateValues();
+            updateLocalStorage();
+
+            textInput.value = '';
+            amountInput.value = '';
+        }
+
+        function generateID() {
+            return Math.floor(Math.random() * 100000000);
+        }
+
+        function addTransactionDOM(transaction) {
+            const sign = transaction.type === 'expense' ? '-' : '+';
+            const item = document.createElement('li');
+            item.classList.add('transaction-item', transaction.type);
+
+            item.innerHTML = `
+                <span>${transaction.text}</span>
+                <div>
+                    <span>${sign}฿${Math.abs(transaction.amount).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                    <button class="delete-btn" onclick="removeTransaction(${transaction.id})">✕</button>
+                </div>
+            `;
+            listEl.appendChild(item);
+        }
+
+        function updateValues() {
+            const income = transactions
+                .filter(t => t.type === 'income')
+                .reduce((acc, t) => acc + t.amount, 0);
+
+            const expense = transactions
+                .filter(t => t.type === 'expense')
+                .reduce((acc, t) => acc + t.amount, 0);
+
+            const total = income - expense;
+
+            balanceEl.innerText = `฿${total.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+            totalIncomeEl.innerText = `฿${income.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+            totalExpenseEl.innerText = `฿${expense.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+        }
+
+        function removeTransaction(id) {
+            transactions = transactions.filter(t => t.id !== id);
+            updateLocalStorage();
+            init();
+        }
+
+        function updateLocalStorage() {
+            localStorage.setItem('transactions', JSON.stringify(transactions));
+        }
+
+        form.addEventListener('submit', addTransaction);
+        init();
+    </script>
+</body>
+</html>
